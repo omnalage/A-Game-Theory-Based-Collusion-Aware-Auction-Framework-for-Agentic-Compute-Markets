@@ -30,7 +30,7 @@ Rajat Samarth\\
 \maketitle
 
 \begin{abstract}
-Modern AI infrastructure increasingly relies on market-based allocation of scarce compute resources. In such settings, autonomous agents place bids continuously, and coordinated manipulation can reduce market efficiency. This paper presents a collusion-aware framework that combines a Vickrey (second-price) auction backbone with \emph{detection-conditioned} adaptive bid enforcement. In the improved pipeline, a streaming logistic regression refits each round on prior rounds only (no label leakage) and outputs a collusion risk score that scales enforcement; per-agent adjustment uses raw-bid histories and mild valuation heterogeneity so final bids and second prices exhibit realistic dispersion. The baseline omits this stage entirely. We implement a reproducible simulation using 150 agents, 200 rounds per trial, and 20 seeded trials on the cleaned master dataset \texttt{gpu\_specs\_v7.csv}. Average payment rises by 20.01\% and average welfare by 19.95\% relative to baseline. We report detector metrics (accuracy, ROC-AUC, precision, recall, FPR, FNR) and interpret five exported figures (\texttt{graphs/}), including axis labels (\emph{Round} vs.\ \emph{Payment} or \emph{Welfare}). We discuss synthetic adversary limits and steps to improve external validity.
+Modern AI infrastructure increasingly relies on market-based allocation of scarce compute resources. In such settings, autonomous agents place bids continuously, and coordinated manipulation can reduce market efficiency. This paper presents a collusion-aware framework that combines a Vickrey (second-price) auction backbone with \emph{detection-conditioned} adaptive bid enforcement. In the improved pipeline, a streaming logistic regression refits each round on prior rounds only (no label leakage) and outputs a collusion risk score that scales enforcement; per-agent adjustment uses raw-bid histories and mild valuation heterogeneity so final bids and second prices exhibit realistic dispersion. The Vickrey method omits this stage entirely. We implement a reproducible simulation using 1500 agents, 200 rounds per trial, and 20 seeded trials on the cleaned master dataset \texttt{gpu\_specs\_v7.csv}. Average payment rises by 20.01\% and average welfare by 19.95\% relative to the Vickrey method. We report detector metrics (accuracy, ROC-AUC, precision, recall, FPR, FNR) and interpret five exported figures (\texttt{graphs/}), including axis labels (\emph{Round} vs.\ \emph{Payment} or \emph{Welfare}). We discuss synthetic adversary limits and steps to improve external validity.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -54,9 +54,9 @@ This work is designed around comparative analysis, following a clear sequence: s
 \begin{itemize}[leftmargin=*]
     \item We propose a \textbf{novel integrated framework} that joins auction control and collusion detection.
     \item We design \textbf{multi-strategy adversarial simulation} (floor hugging, bid rotation, market split with stochastic deviations).
-    \item We provide a \textbf{justified and reproducible protocol} (150 agents, 200 rounds, 20 trials, fixed seeds).
+    \item We provide a \textbf{justified and reproducible protocol} (1500 agents, 200 rounds, 20 trials, fixed seeds).
     \item We implement \textbf{data normalization + deduplication} across heterogeneous hardware CSV sources.
-    \item We publish \textbf{graph-driven results interpretation} covering both comparison plots and baseline trajectories.
+    \item We publish \textbf{graph-driven results interpretation} covering both comparison plots and Vickrey trajectories.
 \end{itemize}
 
 \subsection{Section Takeaway}
@@ -76,7 +76,7 @@ Algorithmic mechanism design studies strategic computation and incentive-aware p
 Compared with these lines, our contribution is implementation-centric: we explicitly simulate multiple collusion tactics with controlled stochasticity and evaluate operational metrics (payment/welfare gains) under repeated rounds.
 
 \subsection{Category C: ML for behavior monitoring}
-Logistic regression remains a strong baseline for interpretable supervised detection \cite{hosmer,sklearn}. For monitoring tasks, feature-based classification is widely used when domain signals are low-dimensional and explainable.
+Logistic regression remains a strong reference model for interpretable supervised detection \cite{hosmer,sklearn}. For monitoring tasks, feature-based classification is widely used when domain signals are low-dimensional and explainable.
 
 Our detector uses six round-level features derived from bid distributions and temporal order. The objective is not deep architecture novelty; instead, we emphasize integration quality and reproducibility in a mechanism-design context.
 
@@ -92,16 +92,16 @@ Related work confirms that our direction is well grounded while leaving room for
 \section{Problem Statement}
 We model a repeated compute marketplace with bidder set $\mathcal{A}$ and rounds $t=1,\dots,T$. Each round, agents submit bids for unit compute access. A subset of agents may collude.
 
-\subsection{Baseline allocation}
-Given floor $p_t^\*$ from an oracle, valid bids are:
+\subsection{Vickrey allocation}
+Given floor $p_t^\ast$ from an oracle, valid bids are:
 \begin{equation}
-\mathcal{V}_t = \{(i,b_i^t)\mid b_i^t \ge p_t^\*\}.
+\mathcal{V}_t = \{(i,b_i^t)\mid b_i^t \ge p_t^\ast\}.
 \end{equation}
 The highest valid bidder wins. Payment follows the Vickrey rule:
 \begin{equation}
 \pi_t = b_{(2)}^t,
 \end{equation}
-where $b_{(2)}^t$ is the second-highest \emph{submitted} valid bid. The oracle reserve $p_t^\*$ is drawn once per round and used consistently for eligibility and clearing.
+where $b_{(2)}^t$ is the second-highest \emph{submitted} valid bid. The oracle reserve $p_t^\ast$ is drawn once per round and used consistently for eligibility and clearing.
 
 We log two scalar outcomes per cleared round: payment $\pi_t$ (second price) and a welfare proxy $w_t$, implemented as the winning agent's submitted bid (upper bound on extracted surplus for that winner under a single-unit, private-value interpretation). Both are reported in simulation currency units derived from hardware-implied valuations.
 
@@ -152,7 +152,7 @@ $\rightarrow$ Feature logging $\rightarrow$ Held-out detector evaluation $\right
 \subsection{Adaptive bid enforcement}
 Let $\bar{b}_i^{t-1}$ be the mean \emph{raw} (pre-enforcement) bid for agent $i$ over prior rounds. A conservative base correction resists sustained shading:
 \begin{equation}
-\hat{b}_i^t = \max\left(b_i^t,\ \max\left(p_t^\*, \alpha_t \bar{b}_i^{t-1}\right)\right),
+\hat{b}_i^t = \max\left(b_i^t,\ \max\left(p_t^\ast, \alpha_t \bar{b}_i^{t-1}\right)\right),
 \end{equation}
 where $\alpha_t$ is stochastic slack in $[0.88, 0.96]$ (operator tolerance). Let $\ell_t \in [0,1]$ be the collusion risk estimate from a logistic model fit \emph{only} on rounds $1,\ldots,t-1$ (no leakage from the current round's label). The improved mechanism posts:
 \begin{equation}
@@ -199,12 +199,12 @@ This makes the approach suitable for near-real-time market monitoring where late
 \begin{algorithmic}[1]
 \For{trial $=1$ to $20$}
     \State trial\_seed $\gets$ BASE\_SEED $+$ trial $-$ 1; initialize RNG
-    \State Instantiate BASIC marketplace (no adjuster); call \textsc{Simulate}(200 rounds)
+    \State Instantiate VICKREY marketplace (no adjuster); call \textsc{Simulate}(200 rounds)
     \State Instantiate IMPROVED marketplace (adjuster + online logistic); call \textsc{Simulate}(200 rounds)
-    \State \Comment{RNG advances across BASIC then IMPROVED; trials use independent seeds}
+    \State \Comment{RNG advances across VICKREY then IMPROVED; trials use independent seeds}
     \State Stratified train/test Random Forest on IMPROVED logged features; record metrics
 \EndFor
-\State Aggregate trial means and std devs; payment and welfare gains vs BASIC
+\State Aggregate trial means and std devs; payment and welfare gains vs VICKREY
 \State Export five figures to \texttt{graphs/} (\emph{Round} on $x$-axis; \emph{Payment} or \emph{Welfare} on $y$-axis)
 \end{algorithmic}
 \end{algorithm}
@@ -212,9 +212,9 @@ This makes the approach suitable for near-real-time market monitoring where late
 \begin{algorithm}[t]
 \caption{\textsc{Simulate} (one marketplace instance)}
 \begin{algorithmic}[1]
-\State Sample 150 agents from \texttt{gpu\_specs\_v7.csv} pool; initialize adjuster state if improved
+\State Sample 1500 agents from \texttt{gpu\_specs\_v7.csv} pool; initialize adjuster state if improved
 \For{round $t=1$ to $200$}
-    \State Draw reserve $p_t^\*$ once for this round
+    \State Draw reserve $p_t^\ast$ once for this round
     \State Sample collusion-round indicator; generate bids; add small noise
     \State Extract $\mathbf{x}_t$; append to logs with label $y_t$
     \If{improved}
@@ -223,9 +223,9 @@ This makes the approach suitable for near-real-time market monitoring where late
         \Else
             \State $\ell_t \gets 0.5$
         \EndIf
-        \State Build final bids $\tilde{b}_i^t$ via Section IV-B; clear auction at $p_t^\*$
+        \State Build final bids $\tilde{b}_i^t$ via Section IV-B; clear auction at $p_t^\ast$
     \Else
-        \State Clear auction on raw bids at $p_t^\*$
+        \State Clear auction on raw bids at $p_t^\ast$
     \EndIf
     \State Store payment $\pi_t$ and welfare proxy $w_t$
 \EndFor
@@ -243,7 +243,7 @@ To satisfy research reporting quality, all constants are explicitly documented i
 \textbf{Parameter} & \textbf{Value} & \textbf{Justification} \\
 \midrule
 \texttt{DATASET\_PATH} & \texttt{gpu\_specs\_v7.csv} & Single cleaned GPU master table for agent sampling. \\
-Agent count & 150 & Project requirement; large enough to reveal group behavior. \\
+Agent count & 1500 & Project requirement; large enough to reveal group behavior. \\
 Rounds/trial & 200 & Sufficient for temporal statistics and stable means. \\
 Trials & 20 & Reduces one-run randomness; enables mean $\pm$ std reporting. \\
 Base seed & 42 & Reproducibility anchor; trials use $42,43,\ldots$ \\
@@ -279,7 +279,7 @@ The simulation loads \textbf{\texttt{gpu\_specs\_v7.csv}} as the sole master tab
 \begin{itemize}[leftmargin=*]
     \item GPU rows in master file: 2958,
     \item Missing \texttt{Release price (USD)} in \texttt{gpu\_specs\_v7.csv}: 0 (cleaned column),
-    \item Agent values map price $\div 10^4$ when sampling 150 rows per trial.
+    \item Agent values map price $\div 10^4$ when sampling 1500 rows per trial.
 \end{itemize}
 
 \subsection{Data Quality Implications}
@@ -298,9 +298,9 @@ The \texttt{gpu\_specs\_v7.csv} master gives a stable, GPU-only pool for repeate
 \toprule
 \textbf{Metric} & \textbf{Value} \\
 \midrule
-Basic payment & $3.8565 \pm 0.0011$ \\
+Vickrey payment & $3.8565 \pm 0.0011$ \\
 Improved payment & $4.6282 \pm 0.0295$ \\
-Basic welfare & $3.8712 \pm 0.0011$ \\
+Vickrey welfare & $3.8712 \pm 0.0011$ \\
 Improved welfare & $4.6434 \pm 0.0299$ \\
 Payment gain & 20.01\% \\
 Welfare gain & 19.95\% \\
@@ -332,16 +332,16 @@ Perfect FPR/FNR values imply no false alarms and no missed collusion rounds on t
 \begin{figure}[t]
 \centering
 \includegraphics[width=\columnwidth]{graphs/comparison_payments.png}
-\caption{Payment vs.\ round (axis-labeled): Basic and Improved second-price payments $\pi_t$. Improved curve lies higher on average (20.01\% mean gain) with visible volatility from time-varying collusion scores $\ell_t$ and bidder heterogeneity.}
+\caption{Payment vs.\ round (axis-labeled): Vickrey and Improved second-price payments $\pi_t$. Improved curve lies higher on average (20.01\% mean gain) with visible volatility from time-varying collusion scores $\ell_t$ and bidder heterogeneity.}
 \label{fig:cp}
 \end{figure}
-Interpretation: fluctuations are expected in repeated markets; the improved arm tracks above Basic while preserving non-degenerate dynamics.
+Interpretation: fluctuations are expected in repeated markets; the improved arm tracks above Vickrey while preserving non-degenerate dynamics.
 
 \subsection{Graph 2: Welfare comparison}
 \begin{figure}[t]
 \centering
 \includegraphics[width=\columnwidth]{graphs/comparison_welfare.png}
-\caption{Welfare proxy $w_t$ (winning bid, Section III) vs.\ round: Basic vs.\ Improved. Mean welfare improves by 19.95\% aggregate; shapes align with payment because both come from the same auction clearing.}
+\caption{Welfare proxy $w_t$ (winning bid, Section III) vs.\ round: Vickrey vs.\ Improved. Mean welfare improves by 19.95\% aggregate; shapes align with payment because both come from the same auction clearing.}
 \label{fig:cw}
 \end{figure}
 Interpretation: higher $w_t$ alongside higher $\pi_t$ is consistent with the improved mechanism raising effective bids without collapsing allocation to trivial outcomes.
@@ -397,7 +397,7 @@ Quantitative and visual evidence consistently support improved market outcomes u
 \textbf{Internal validity:} controlled seeds reduce randomness but cannot remove modeling bias.\\
 \textbf{External validity:} real-world agents can adapt beyond fixed strategy templates.\\
 \textbf{Construct validity:} current metrics focus on payment/welfare, not fairness and latency.\\
-\textbf{Pairing:} BASIC and IMPROVED runs within a trial consume the same RNG object sequentially (BASIC first, then IMPROVED), so they are not counterfactual reruns of identical per-round shocks; aggregated gains should be read as protocol-level comparison under the stated seeds, not matched-path A/B at every round.
+\textbf{Pairing:} VICKREY and IMPROVED runs within a trial consume the same RNG object sequentially (VICKREY first, then IMPROVED), so they are not counterfactual reruns of identical per-round shocks; aggregated gains should be read as protocol-level comparison under the stated seeds, not matched-path A/B at every round.
 
 \subsection{Ethical and Reporting Considerations}
 \begin{itemize}[leftmargin=*]
@@ -408,10 +408,10 @@ Quantitative and visual evidence consistently support improved market outcomes u
 \end{itemize}
 
 \subsection{Section Takeaway}
-The framework is strong as a reproducible research baseline, but real-world readiness requires harder adversaries, richer quality metrics, and stronger external data grounding.
+The framework is strong as a reproducible research reference implementation, but real-world readiness requires harder adversaries, richer quality metrics, and stronger external data grounding.
 
 \section{Conclusion}
-This paper presented an IEEE-style comparative analysis of a collusion-aware framework for agentic compute marketplaces. The improved mechanism couples strict Vickrey clearing with \emph{online} collusion-risk scoring and history-aware bid lifts (raw-bid memory, no compounding through past adjusted bids), yielding about 20\% higher mean payment and welfare versus baseline in 20 trials on \texttt{gpu\_specs\_v7.csv}. Figures exported to \texttt{graphs/} now include labeled axes for direct use in reports. Future work should increase adversarial complexity, relax reliance on simulated labels for streaming training, and validate with real market traces.
+This paper presented an IEEE-style comparative analysis of a collusion-aware framework for agentic compute marketplaces. The improved mechanism couples strict Vickrey clearing with \emph{online} collusion-risk scoring and history-aware bid lifts (raw-bid memory, no compounding through past adjusted bids), yielding about 20\% higher mean payment and welfare versus the Vickrey method in 20 trials on \texttt{gpu\_specs\_v7.csv}. Figures exported to \texttt{graphs/} now include labeled axes for direct use in reports. Future work should increase adversarial complexity, relax reliance on simulated labels for streaming training, and validate with real market traces.
 
 \subsection{Practical Deployment Roadmap}
 For teams adopting this framework in real systems, we recommend three stages: (i) offline replay testing with historical traces, (ii) shadow-mode deployment with operator review, and (iii) progressive policy activation with monitored safeguards.
@@ -461,4 +461,3 @@ T. Fawcett, ``An introduction to ROC analysis,'' \emph{Pattern Recognition Lette
 \end{thebibliography}
 
 \end{document}
-

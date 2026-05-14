@@ -1,9 +1,9 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025) (preloaded format=pdflatex 2025.10.15)  9 APR 2026 18:38
+This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025) (preloaded format=pdflatex 2025.10.15)  12 MAY 2026 08:45
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
-**ieee_paper.tex
-(./ieee_paper.tex
+**paper/ieee_paper.tex
+(./paper/ieee_paper.tex
 LaTeX2e <2024-11-01> patch level 2
 L3 programming layer <2025-01-18>
 (/usr/local/texlive/2025/texmf-dist/tex/latex/ieeetran/IEEEtran.cls
@@ -499,7 +499,7 @@ File: l3backend-pdftex.def 2024-05-08 L3 backend support: PDF output (pdfTeX)
 \l__color_backend_stack_int=\count331
 \l__pdf_internal_box=\box69
 )
-(./ieee_paper.aux)
+(paper/ieee_paper.aux)
 \openout1 = `ieee_paper.aux'.
 
 LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 29.
@@ -546,7 +546,7 @@ e
 ))
 Package hyperref Info: Link coloring ON on input line 29.
 
-(./ieee_paper.out) (./ieee_paper.out)
+(paper/ieee_paper.out) (paper/ieee_paper.out)
 \@outlinefile=\write3
 \openout3 = `ieee_paper.out'.
 
@@ -825,36 +825,36 @@ pdfTeX warning (ext4): destination with the same identifier (name{figure.5}) ha
 s been already used, duplicate ignored
 <argument> ...shipout:D \box_use:N \l_shipout_box 
                                                   \__shipout_drop_firstpage_...
-l.440     \item D
-                 iscussion includes limitations and validity threats.
+l.439     \item G
+                 raphs are cited and interpreted, not only displayed.
 pdfTeX warning (ext4): destination with the same identifier (name{figure.6}) ha
 s been already used, duplicate ignored
 <argument> ...shipout:D \box_use:N \l_shipout_box 
                                                   \__shipout_drop_firstpage_...
-l.440     \item D
-                 iscussion includes limitations and validity threats. <./graphs
+l.439     \item G
+                 raphs are cited and interpreted, not only displayed. <./graphs
 /welfare.png> <./graphs/output.png>]
 
 
 
 [7
 
-] (./ieee_paper.aux)
+] (paper/ieee_paper.aux)
  ***********
 LaTeX2e <2024-11-01> patch level 2
 L3 programming layer <2025-01-18>
  ***********
 Package rerunfilecheck Info: File `ieee_paper.out' has not changed.
-(rerunfilecheck)             Checksum: DF4297677A809AF28E243F77E1D07B58;9756.
+(rerunfilecheck)             Checksum: 07B3C0A7D13D71805069AF329013D034;9751.
  ) 
 Here is how much of TeX's memory you used:
- 16303 strings out of 473190
- 315095 string characters out of 5715799
- 704829 words of memory out of 5000000
+ 16304 strings out of 473190
+ 315165 string characters out of 5715799
+ 704833 words of memory out of 5000000
  39269 multiletter control sequences out of 15000+600000
  607110 words of font info for 133 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
- 75i,13n,79p,1362b,1143s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ 75i,13n,79p,1385b,1143s stack positions out of 10000i,1000n,20000p,200000b,200000s
 </usr/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx10.pfb
 ></usr/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmex10.pfb>
 </usr/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb><
@@ -874,7 +874,7 @@ nts/type1/urw/courier/ucrro8a.pfb></usr/local/texlive/2025/texmf-dist/fonts/typ
 e1/urw/times/utmb8a.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/urw/tim
 es/utmbi8a.pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/urw/times/utmr8a
 .pfb></usr/local/texlive/2025/texmf-dist/fonts/type1/urw/times/utmri8a.pfb>
-Output written on ieee_paper.pdf (7 pages, 620766 bytes).
+Output written on paper/ieee_paper.pdf (7 pages, 651450 bytes).
 PDF statistics:
  428 PDF objects out of 1000 (max. 8388607)
  364 compressed objects within 4 object streams

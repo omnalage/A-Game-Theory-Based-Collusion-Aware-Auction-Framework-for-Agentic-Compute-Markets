@@ -25,7 +25,7 @@ from sklearn.metrics import accuracy_score, confusion_matrix, roc_auc_score, pre
 DATASET_PATH = "datasets/gpu_specs_v7.csv"
 REFERENCE_DATASET_DIR = "reference_datasets"
 ROOT_REFERENCE_DATASETS = []
-DEFAULT_AGENT_COUNT = 150
+DEFAULT_AGENT_COUNT = 1500
 OUTPUT_GRAPH_DIR = "graphs"
 DEFAULT_ROUNDS = 200
 DEFAULT_TRIALS = 20
@@ -39,7 +39,7 @@ COLLUSION_LABEL_MIN_ACTIVE_SHARE = 0.45
 LABEL_NOISE_PROB = 0.08
 # Improved path only: extra enforcement scale when ML assigns high collusion risk.
 # Effective multiplier per bid is 1 + collusion_strength * IMPROVED_MAX_ENFORCEMENT_DELTA.
-# Tuned so multi-trial mean payment gain stays ~20–25% vs baseline.
+# Tuned so multi-trial mean payment gain stays ~20-25% vs Vickrey method.
 IMPROVED_MAX_ENFORCEMENT_DELTA = 0.395
 # Mild heterogeneity from agent-specific valuations (improved path only).
 IMPROVED_VALUE_HETEROGENEITY = 0.065
@@ -359,7 +359,7 @@ class Marketplace:
         return value * rng.uniform(0.90, 1.02), True
 
     def simulate(self, rng, rounds=DEFAULT_ROUNDS, n_agents=DEFAULT_AGENT_COUNT, detector_seed=BASE_SEED):
-        # Keep project requirement fixed at 150 agents.
+        # Keep project requirement fixed at 1500 agents.
         n_agents = DEFAULT_AGENT_COUNT
         agents = generate_agents(rng, n_agents)
         colluders = [a for a in agents if a["collusive"]]
@@ -422,7 +422,10 @@ class Marketplace:
 
             if result:
                 _, payment, welfare = result
-                self.results.append((payment, welfare))
+                # Seller-side profit uses the reserve floor as the seller's
+                # minimum acceptable cost/opportunity-cost proxy.
+                seller_profit = max(float(payment) - float(floor), 0.0)
+                self.results.append((payment, welfare, seller_profit))
 
             prev_bids = bids
 
@@ -437,11 +440,16 @@ class Marketplace:
 def print_stats(name, results):
     payments = [r[0] for r in results]
     welfare = [r[1] for r in results]
+    seller_profit = [r[2] for r in results if len(r) > 2]
 
     print(f"\n{name} RESULTS")
     print("Avg Payment:", np.mean(payments))
+    if seller_profit:
+        print("Avg Seller Profit:", np.mean(seller_profit))
     print("Avg Welfare:", np.mean(welfare))
     print("Payment Std:", np.std(payments))
+    if seller_profit:
+        print("Seller Profit Std:", np.std(seller_profit))
 
 def evaluate_ml(X, y, seed):
     if len(set(y)) < 2:
@@ -488,6 +496,34 @@ def evaluate_ml(X, y, seed):
         "fnr": fnr,
     }
 
+def plot_average_seller_profit(avg_vickrey_profit, avg_imp_profit, profit_gain):
+    os.makedirs(OUTPUT_GRAPH_DIR, exist_ok=True)
+
+    plt.figure(figsize=(7, 5))
+    bars = plt.bar(
+        ["Vickrey", "Improved"],
+        [avg_vickrey_profit, avg_imp_profit],
+        color=["#6b7280", "#1f77b4"],
+    )
+    max_profit = max(avg_vickrey_profit, avg_imp_profit, 1e-9)
+    plt.title("Average Seller Profit Across Trials")
+    plt.ylabel("Seller profit (payment - reserve)")
+    plt.ylim(0, max_profit * 1.18)
+    plt.text(1, avg_imp_profit + max_profit * 0.06, f"+{profit_gain:.1f}%", ha="center", va="bottom")
+    for bar in bars:
+        height = bar.get_height()
+        plt.text(
+            bar.get_x() + bar.get_width() / 2,
+            height + max_profit * 0.015,
+            f"{height:.3f}",
+            ha="center",
+            va="bottom",
+        )
+    plt.tight_layout()
+    plt.savefig(os.path.join(OUTPUT_GRAPH_DIR, "seller_profit_summary.png"))
+    plt.close()
+
+
 def summarize_trials(trial_stats):
     def agg(key):
         vals = np.array([t[key] for t in trial_stats], dtype=float)
@@ -495,43 +531,72 @@ def summarize_trials(trial_stats):
 
     print("\nMULTI-TRIAL SUMMARY")
     for key in [
-        "basic_payment", "improved_payment", "basic_welfare", "improved_welfare",
+        "vickrey_payment", "improved_payment", "vickrey_seller_profit", "improved_seller_profit",
+        "vickrey_welfare", "improved_welfare",
         "accuracy", "roc_auc", "precision", "recall", "fpr", "fnr"
     ]:
         m, s = agg(key)
         print(f"{key}: {m:.4f} +/- {s:.4f}")
 
-    p_gain = ((agg("improved_payment")[0] - agg("basic_payment")[0]) / (agg("basic_payment")[0] + 1e-9)) * 100
-    w_gain = ((agg("improved_welfare")[0] - agg("basic_welfare")[0]) / (agg("basic_welfare")[0] + 1e-9)) * 100
-    print(f"Payment gain (improved vs basic): {p_gain:.2f}%")
-    print(f"Welfare gain (improved vs basic): {w_gain:.2f}%")
+    vickrey_payment_mean = agg("vickrey_payment")[0]
+    improved_payment_mean = agg("improved_payment")[0]
+    vickrey_profit_mean = agg("vickrey_seller_profit")[0]
+    improved_profit_mean = agg("improved_seller_profit")[0]
+    vickrey_welfare_mean = agg("vickrey_welfare")[0]
+    improved_welfare_mean = agg("improved_welfare")[0]
 
-def plot_comparison(basic, improved):
+    p_gain = ((improved_payment_mean - vickrey_payment_mean) / (vickrey_payment_mean + 1e-9)) * 100
+    sp_gain = ((improved_profit_mean - vickrey_profit_mean) / (vickrey_profit_mean + 1e-9)) * 100
+    w_gain = ((improved_welfare_mean - vickrey_welfare_mean) / (vickrey_welfare_mean + 1e-9)) * 100
+    print(f"Payment gain (improved vs Vickrey): {p_gain:.2f}%")
+    print(f"Seller profit gain (improved vs Vickrey): {sp_gain:.2f}%")
+    print(f"Welfare gain (improved vs Vickrey): {w_gain:.2f}%")
+    plot_average_seller_profit(vickrey_profit_mean, improved_profit_mean, sp_gain)
+
+def plot_comparison(vickrey, improved):
     os.makedirs(OUTPUT_GRAPH_DIR, exist_ok=True)
 
-    basic_p = [r[0] for r in basic]
+    vickrey_p = [r[0] for r in vickrey]
     imp_p = [r[0] for r in improved]
 
-    basic_w = [r[1] for r in basic]
+    vickrey_w = [r[1] for r in vickrey]
     imp_w = [r[1] for r in improved]
 
-    plt.figure()
-    plt.plot(basic_p, label="Basic")
-    plt.plot(imp_p, label="Improved")
-    plt.legend()
-    plt.title("Payment Comparison")
-    plt.xlabel("Round")
-    plt.ylabel("Payment")
-    plt.savefig(os.path.join(OUTPUT_GRAPH_DIR, "comparison_payments.png"))
+    vickrey_profit = [r[2] if len(r) > 2 else r[0] for r in vickrey]
+    imp_profit = [r[2] if len(r) > 2 else r[0] for r in improved]
 
     plt.figure()
-    plt.plot(basic_w, label="Basic")
+    plt.plot(vickrey_p, label="Vickrey")
+    plt.plot(imp_p, label="Improved")
+    plt.legend()
+    plt.title("Seller Revenue Comparison")
+    plt.xlabel("Round")
+    plt.ylabel("Payment received by seller")
+    plt.tight_layout()
+    plt.savefig(os.path.join(OUTPUT_GRAPH_DIR, "comparison_payments.png"))
+    plt.close()
+
+    plt.figure()
+    plt.plot(vickrey_w, label="Vickrey")
     plt.plot(imp_w, label="Improved")
     plt.legend()
     plt.title("Welfare Comparison")
     plt.xlabel("Round")
     plt.ylabel("Welfare")
+    plt.tight_layout()
     plt.savefig(os.path.join(OUTPUT_GRAPH_DIR, "comparison_welfare.png"))
+    plt.close()
+
+    plt.figure()
+    plt.plot(vickrey_profit, label="Vickrey")
+    plt.plot(imp_profit, label="Improved")
+    plt.legend()
+    plt.title("Seller Profit Comparison")
+    plt.xlabel("Round")
+    plt.ylabel("Seller profit (payment - reserve)")
+    plt.tight_layout()
+    plt.savefig(os.path.join(OUTPUT_GRAPH_DIR, "comparison_seller_profit.png"))
+    plt.close()
 
     # Single-series views expected by the project outputs.
     rounds_p = list(range(len(imp_p)))
@@ -539,24 +604,30 @@ def plot_comparison(basic, improved):
 
     plt.figure()
     plt.plot(rounds_p, imp_p)
-    plt.title("Payments")
+    plt.title("Improved Seller Revenue")
     plt.xlabel("Round")
-    plt.ylabel("Payment")
+    plt.ylabel("Payment received by seller")
+    plt.tight_layout()
     plt.savefig(os.path.join(OUTPUT_GRAPH_DIR, "payments.png"))
+    plt.close()
 
     plt.figure()
     plt.plot(rounds_w, imp_w)
     plt.title("Welfare")
     plt.xlabel("Round")
     plt.ylabel("Welfare")
+    plt.tight_layout()
     plt.savefig(os.path.join(OUTPUT_GRAPH_DIR, "welfare.png"))
+    plt.close()
 
     plt.figure()
     plt.plot(rounds_w, imp_w)
     plt.title("Social Welfare")
     plt.xlabel("Round")
     plt.ylabel("Welfare")
+    plt.tight_layout()
     plt.savefig(os.path.join(OUTPUT_GRAPH_DIR, "output.png"))
+    plt.close()
 
     print(f"Saved comparison graphs in '{OUTPUT_GRAPH_DIR}/'")
 
@@ -570,7 +641,7 @@ if __name__ == "__main__":
     log_dataset_summary()
 
     trial_stats = []
-    plot_basic = None
+    plot_vickrey = None
     plot_improved = None
 
     for trial_idx in range(DEFAULT_TRIALS):
@@ -578,15 +649,15 @@ if __name__ == "__main__":
         rng = np.random.default_rng(trial_seed)
 
         print(f"\nTRIAL {trial_idx + 1}/{DEFAULT_TRIALS}")
-        print("Running BASIC system...")
-        basic = Marketplace(False)
-        basic.simulate(rng=rng, rounds=DEFAULT_ROUNDS, detector_seed=trial_seed)
+        print("Running VICKREY system...")
+        vickrey = Marketplace(False)
+        vickrey.simulate(rng=rng, rounds=DEFAULT_ROUNDS, detector_seed=trial_seed)
 
         print("Running IMPROVED system...")
         improved = Marketplace(True)
         improved.simulate(rng=rng, rounds=DEFAULT_ROUNDS, detector_seed=trial_seed)
 
-        print_stats("BASIC", basic.results)
+        print_stats("VICKREY", vickrey.results)
         print_stats("IMPROVED", improved.results)
 
         ml = evaluate_ml(improved.features, improved.labels, seed=trial_seed)
@@ -594,16 +665,18 @@ if __name__ == "__main__":
             continue
 
         trial_stats.append({
-            "basic_payment": float(np.mean([r[0] for r in basic.results])),
+            "vickrey_payment": float(np.mean([r[0] for r in vickrey.results])),
             "improved_payment": float(np.mean([r[0] for r in improved.results])),
-            "basic_welfare": float(np.mean([r[1] for r in basic.results])),
+            "vickrey_seller_profit": float(np.mean([r[2] for r in vickrey.results])),
+            "improved_seller_profit": float(np.mean([r[2] for r in improved.results])),
+            "vickrey_welfare": float(np.mean([r[1] for r in vickrey.results])),
             "improved_welfare": float(np.mean([r[1] for r in improved.results])),
             **ml,
         })
-        plot_basic = basic.results
+        plot_vickrey = vickrey.results
         plot_improved = improved.results
 
-    if plot_basic and plot_improved:
-        plot_comparison(plot_basic, plot_improved)
+    if plot_vickrey and plot_improved:
+        plot_comparison(plot_vickrey, plot_improved)
     if trial_stats:
         summarize_trials(trial_stats)
